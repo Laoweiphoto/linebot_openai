@@ -25,12 +25,20 @@ handler = WebhookHandler(os.getenv('CHANNEL_SECRET'))
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
 def GPT_response(text):
-    # 接收回應
-    response = openai.Completion.create(model="老崴", prompt=text, temperature=0.5, max_tokens=500)
-    print(response)
-    # 重組回應
-    answer = response['choices'][0]['text'].replace('。','')
-    return answer
+    try:
+        response = openai.Completion.create(model="老崴", prompt=text, temperature=0.5, max_tokens=500)
+        print("Response from OpenAI:", response)
+
+        # 檢查 response 是否包含 'choices'，並且 'choices' 不是空的
+        if 'choices' in response and response['choices']:
+            choice_text = response['choices'][0].get('text', '').strip()
+            # 將回應中的 '。' 替換為空白
+            return choice_text.replace('。', '')
+        else:
+            return "無法獲取回應"
+    except Exception as e:
+        print(f"Error in GPT_response: {e}")
+        return "回應生成時出現錯誤"
 
 # 監聽所有來自 /callback 的 Post Request
 @app.route("/callback", methods=['POST'])
@@ -57,9 +65,10 @@ def handle_message(event):
         GPT_answer = GPT_response(msg)
         print(GPT_answer)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(GPT_answer))
-    except:
-        print(traceback.format_exc())
-        line_bot_api.reply_message(event.reply_token, TextSendMessage('你所使用的OPENAI API key額度可能已經超過，請於後台Log內確認錯誤訊息'))
+    except Exception as e:
+        print(f"Error in handle_message: {e}")
+        traceback.print_exc()
+        line_bot_api.reply_message(event.reply_token, TextSendMessage('處理訊息時出現錯誤'))
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
