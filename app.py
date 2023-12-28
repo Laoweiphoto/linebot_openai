@@ -27,12 +27,13 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 
 
 def GPT_response(text):
-    # 接收回應
     response = openai.Completion.create(model="老崴", prompt=text, temperature=0.5, max_tokens=500)
-    print(response)
-    # 重組回應
-    answer = response['choices'][0]['text'].strip()  # 這裡我做了修改，用 strip() 去除前後的空白字符
-    return answer
+    print("Response from OpenAI:", response)  # 調試打印
+    if response and 'choices' in response and len(response['choices']) > 0:
+        answer = response['choices'][0]['text'].strip()
+        return answer
+    else:
+        return "無法獲取回應"
 
 
 # 監聽所有來自 /callback 的 Post Request
@@ -54,6 +55,10 @@ def callback():
 # 處理訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+msg = event.message.text
+    if msg is None:
+        print("Received None message")
+        return
     msg = event.message.text
     try:
         GPT_answer = GPT_response(msg)
