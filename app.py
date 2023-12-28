@@ -28,10 +28,10 @@ openai.api_key = os.getenv('OPENAI_API_KEY')
 
 def GPT_response(text):
     # 接收回應
-    response = openai.Completion.create(model="text-davinci-003", prompt=text, temperature=0.5, max_tokens=500)
+    response = openai.Completion.create(model="老崴", prompt=text, temperature=0.5, max_tokens=500)
     print(response)
     # 重組回應
-    answer = response['choices'][0]['text'].replace('。','')
+    answer = response['choices'][0]['text'].strip()  # 這裡我做了修改，用 strip() 去除前後的空白字符
     return answer
 
 
