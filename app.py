@@ -29,10 +29,8 @@ def GPT_response(text):
         response = openai.Completion.create(model="老崴", prompt=text, temperature=0.5, max_tokens=500)
         print("Response from OpenAI:", response)
 
-        # 檢查 response 是否包含 'choices'，並且 'choices' 不是空的
         if 'choices' in response and response['choices']:
             choice_text = response['choices'][0].get('text', '').strip()
-            # 將回應中的 '。' 替換為空白
             return choice_text.replace('。', '')
         else:
             return "無法獲取回應"
@@ -40,28 +38,32 @@ def GPT_response(text):
         print(f"Error in GPT_response: {e}")
         return "回應生成時出現錯誤"
 
-# 監聽所有來自 /callback 的 Post Request
 @app.route("/callback", methods=['POST'])
 def callback():
-    # get X-Line-Signature header value
     signature = request.headers['X-Line-Signature']
-
-    # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
 
-    # handle webhook body
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
+        print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
+    except Exception as e:
+        print(f"Error in callback: {e}")
+        traceback.print_exc()
+        abort(500)
     return 'OK'
 
-# 處理訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    msg = event.message.text
     try:
+        msg = event.message.text
+        if not msg:
+            print("Received None or empty message")
+            line_bot_api.reply_message(event.reply_token, TextSendMessage('收到空訊息'))
+            return
+
         GPT_answer = GPT_response(msg)
         print(GPT_answer)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(GPT_answer))
