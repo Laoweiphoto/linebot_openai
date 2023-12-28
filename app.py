@@ -59,12 +59,17 @@ def callback():
 def handle_message(event):
     try:
         msg = event.message.text
-        if not msg:
-            print("Received None or empty message")
+        if msg is None:
+            print("Received None message")
             line_bot_api.reply_message(event.reply_token, TextSendMessage('收到空訊息'))
             return
 
         GPT_answer = GPT_response(msg)
+        if GPT_answer is None:
+            print("GPT response is None")
+            line_bot_api.reply_message(event.reply_token, TextSendMessage('無法生成回應'))
+            return
+
         print(GPT_answer)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(GPT_answer))
     except Exception as e:
