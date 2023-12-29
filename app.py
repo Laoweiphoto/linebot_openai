@@ -6,76 +6,70 @@ from linebot.exceptions import (
     InvalidSignatureError
 )
 from linebot.models import *
-import hashlib
-import os
-import json
-
+#======python的函數庫==========
+import tempfile, os
+import datetime
+import openai
+import time
+import traceback
+#======python的函數庫==========
 app = Flask(__name__)
-
+static_tmp_path = os.path.join(os.path.dirname(__file__), 'static', 'tmp')
 # Channel Access Token
 line_bot_api = LineBotApi(os.getenv('CHANNEL_ACCESS_TOKEN'))
 # Channel Secret
 handler = WebhookHandler(os.getenv('CHANNEL_SECRET'))
-
-def validate_signature(request_body, received_signature, secret_key):
-    # 使用 SHA-1 算法生成簽名
-    signature = hashlib.sha1((request_body + secret_key).encode()).hexdigest()
-    return signature == received_signature
-
+# OPENAI API Key初始化設定
+openai.api_key = os.getenv('OPENAI_API_KEY')
+def GPT_response(text):
+    # 接收回應
+    response = openai.Completion.create(model="text-davinci-003", prompt=text, temperature=0.5, max_tokens=500)
+    print(response)
+    # 重組回應
+    answer = response['choices'][0]['text'].replace('。','')
+    return answer
+# 監聽所有來自 /callback 的 Post Request
 @app.route("/callback", methods=['POST'])
 def callback():
-    # 獲取 LINE 的 X-Line-Signature 標頭值
+    # get X-Line-Signature header value
     signature = request.headers['X-Line-Signature']
-
-    # 獲取請求體作為文本
+    # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
-
-    # 處理 webhook 請求體
+    # handle webhook body
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
     return 'OK'
-
-@app.route("/webhook", methods=['POST'])
-def webhook():
-    # 從環境變量獲取秘密鑰匙
-    secret_key = os.getenv('SECRET_KEY')
-    if not secret_key:
-        abort(500, 'Server configuration error')
-
-    # 獲取原始請求體和簽名
-    request_body = request.get_data(as_text=True)
-    received_signature = request.headers.get('x-chatbase-signature')
-
-    # 驗證簽名
-    if not validate_signature(request_body, received_signature, secret_key):
-        abort(400, 'Invalid signature')
-
-    # 解析 JSON 數據
-    try:
-        data = json.loads(request_body)
-        # 處理數據...
-        print(data)
-    except json.JSONDecodeError:
-        abort(400, 'Invalid JSON')
-
-    return 'OK'
-
-# LINE Bot 處理 TextMessage 的功能
-@handler.add(MessageEvent, message=TextMessage)
+# 處理訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text
-    user_id = event.source.user_id
+    try:
+        GPT_answer = GPT_response(msg)
+        print(GPT_answer)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(GPT_answer))
+    except:
+        print(traceback.exec_format())
+        print(traceback.format_exc())
+        line_bot_api.reply_message(event.reply_token, TextSendMessage('你所使用的OPENAI API key額度可能已經超過，請於後台Log內確認錯誤訊息'))
 
-    # 將消息轉發到 Chatbase
-    forward_to_chatbase(msg, user_id)
 
-    # 不直接回應消息
-    # 回應將由 Chatbase 通過設定的 webhook 完成
-
+@handler.add(PostbackEvent)
+def handle_message(event):
+    print(event.postback.data)
+@handler.add(MemberJoinedEvent)
+def welcome(event):
+    uid = event.joined.members[0].user_id
+    gid = event.source.group_id
+    profile = line_bot_api.get_group_member_profile(gid, uid)
+    name = profile.display_name
+    message = TextSendMessage(text=f'{name}歡迎加入')
+    line_bot_api.reply_message(event.reply_token, message)
+        
+        
+import os
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
