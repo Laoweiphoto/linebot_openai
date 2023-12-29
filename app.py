@@ -65,10 +65,16 @@ def webhook():
 
 # LINE Bot 處理 TextMessage 的功能
 @handler.add(MessageEvent, message=TextMessage)
+@handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text
-    # 在這裡處理接收到的訊息...
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+    user_id = event.source.user_id
+
+    # 將消息轉發到 Chatbase
+    forward_to_chatbase(msg, user_id)
+
+    # 不直接回應消息
+    # 回應將由 Chatbase 通過設定的 webhook 完成
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
