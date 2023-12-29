@@ -1,4 +1,3 @@
-import traceback
 from flask import Flask, request, abort
 from linebot import (
     LineBotApi, WebhookHandler
@@ -7,82 +6,59 @@ from linebot.exceptions import (
     InvalidSignatureError
 )
 from linebot.models import *
+#======python的函數庫==========
 import tempfile, os
 import datetime
 import openai
 import time
 import traceback
-
+#======python的函數庫==========
 app = Flask(__name__)
 static_tmp_path = os.path.join(os.path.dirname(__file__), 'static', 'tmp')
-
 # Channel Access Token
 line_bot_api = LineBotApi(os.getenv('CHANNEL_ACCESS_TOKEN'))
-
 # Channel Secret
 handler = WebhookHandler(os.getenv('CHANNEL_SECRET'))
-
 # OPENAI API Key初始化設定
 openai.api_key = os.getenv('OPENAI_API_KEY')
-
 def GPT_response(text):
-    try:
-        response = openai.Completion.create(model="老崴", prompt=text, temperature=0.5, max_tokens=500)
-        print("Response from OpenAI:", response)
-
-        if 'choices' in response and response['choices']:
-            choice_text = response['choices'][0].get('text', '').strip()
-            return choice_text.replace('。', '')
-        else:
-            return "無法獲取回應"
-    except Exception as e:
-        print(f"Error in GPT_response: {e}")
-        print(traceback.format_exc())
-        return "回應生成時出現錯誤"
-
+    # 接收回應
+    response = openai.Completion.create(model="text-davinci-003", prompt=text, temperature=0.5, max_tokens=500)
+    print(response)
+    # 重組回應
+    answer = response['choices'][0]['text'].replace('。','')
+    return answer
+# 監聽所有來自 /callback 的 Post Request
 @app.route("/callback", methods=['POST'])
 def callback():
+    # get X-Line-Signature header value
     signature = request.headers['X-Line-Signature']
+    # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
-
+    # handle webhook body
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
-    except Exception as e:
-        print(f"Error in callback: {e}")
-        traceback.print_exc()
-        abort(500)
     return 'OK'
-
+# 處理訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    msg = event.message.text
     try:
-        msg = event.message.text
-        if msg is None:
-            print("Received None message")
-            line_bot_api.reply_message(event.reply_token, TextSendMessage('收到空訊息'))
-            return
-
         GPT_answer = GPT_response(msg)
-        if GPT_answer is None:
-            print("GPT response is None")
-            line_bot_api.reply_message(event.reply_token, TextSendMessage('無法生成回應'))
-            return
-
         print(GPT_answer)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(GPT_answer))
-    except Exception as e:
-        print(f"Error in handle_message: {e}")
-        traceback.print_exc()
-        line_bot_api.reply_message(event.reply_token, TextSendMessage('處理訊息時出現錯誤'))
+    except:
+        print(traceback.exec_format())
+        print(traceback.format_exc())
+        line_bot_api.reply_message(event.reply_token, TextSendMessage('你所使用的OPENAI API key額度可能已經超過，請於後台Log內確認錯誤訊息'))
+
 
 @handler.add(PostbackEvent)
-def handle_postback(event):
+def handle_message(event):
     print(event.postback.data)
-
 @handler.add(MemberJoinedEvent)
 def welcome(event):
     uid = event.joined.members[0].user_id
@@ -91,7 +67,8 @@ def welcome(event):
     name = profile.display_name
     message = TextSendMessage(text=f'{name}歡迎加入')
     line_bot_api.reply_message(event.reply_token, message)
-
+        
+        
 import os
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
