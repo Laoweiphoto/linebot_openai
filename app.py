@@ -1,3 +1,4 @@
+import traceback
 from flask import Flask, request, abort
 from linebot import (
     LineBotApi, WebhookHandler
@@ -36,6 +37,7 @@ def GPT_response(text):
             return "無法獲取回應"
     except Exception as e:
         print(f"Error in GPT_response: {e}")
+        print(traceback.format_exc())
         return "回應生成時出現錯誤"
 
 @app.route("/callback", methods=['POST'])
